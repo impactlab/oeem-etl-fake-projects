@@ -23,7 +23,12 @@ from uuid import uuid4
 
 TEMPERATURE_UNIT_STR = "degF"
 
-def upload_to_server(project, url, token, project_owner_id):
+PROJECT_URL = '/api/v1/projects/'
+CONSUMPTION_METADATA_URL = '/api/v1/consumption_metadatas/'
+PROJECT_ATTRIBUTE_KEY_URL = '/api/v1/project_attribute_keys/'
+PROJECT_ATTRIBUTE_URL = '/api/v1/project_attributes/'
+
+def upload_to_server(project, url, token, project_owner_id, project_attributes=[]):
     """Uploads the data to the server.
 
     Parameters
@@ -55,41 +60,58 @@ def upload_to_server(project, url, token, project_owner_id):
         "zipcode": project.location.zipcode
     }
 
-    # save project and get the saved project id
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        response = requests.post(url + "/datastore/project/", data=project_data, headers=auth_headers, verify=False)
+    # see if project exists:
+    response = requests.get(url + PROJECT_URL + "?project_id={}".format(project_id), headers=auth_headers, verify=False)
 
-    # show response result
-    if response.status_code == 201:
+    test_project_existence_json = response.json()
+
+    if len(test_project_existence_json) == 0:
+
+        # create new project and get the saved project id
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            response = requests.post(url + PROJECT_URL, data=project_data, headers=auth_headers, verify=False)
+
         saved_project_id = response.json()["id"]
         print("  Saved project with id: {}".format(saved_project_id))
 
-        # save consumption data using saved project id
-        for consumption in project.consumption:
-            records = consumption.records(record_type="arbitrary_start")
-            records = [{"start":r["start"].isoformat(), "value": r["value"] if not pd.isnull(r["value"]) else None, "estimated": False} for r in records]
-            consumption_data = {
-                "project": saved_project_id,
-                "records": records,
-                "fuel_type": fuel_types[consumption.fuel_type],
-                "energy_unit": energy_units[consumption.unit_name],
-            }
-
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                response = requests.post(url + "/datastore/consumption/", json=consumption_data, headers=auth_headers,verify=False)
-
-            # show response result
-            if response.status_code == 201:
-                saved_consumption_metadata_id = response.json()["id"]
-                print("  Saved consumption_metadata with id: {}".format(saved_consumption_metadata_id))
-            else:
-                print("  UNSUCCESSFUL save of consumption data.")
-                print(response.json())
     else:
-        print("  UNSUCCESSFUL save of project_data data.")
-        print(response.json())
+        saved_project_id = test_project_existence_json[0].project_id
+
+    # save project attributes
+    for project_attribute in project_attributes:
+        project_attribute["project"] = saved_project_id
+        response = requests.post(url + PROJECT_ATTRIBUTE_URL, data=project_attribute, headers=auth_headers, verify=False)
+
+    # save consumption data using saved project id
+    for consumption in project.consumption:
+
+        records = [{
+            "start":r["start"].isoformat(),
+            "value": r["value"] if not pd.isnull(r["value"]) else None,
+            "estimated": False}
+                    for r in consumption.records(record_type="arbitrary_start")]
+
+        consumption_data = {
+            "project": saved_project_id,
+            "records": records,
+            "fuel_type": fuel_types[consumption.fuel_type],
+            "energy_unit": energy_units[consumption.unit_name],
+        }
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            response = requests.post(url + CONSUMPTION_METADATA_URL, json=consumption_data, headers=auth_headers,verify=False)
+
+        # show response result
+        if response.status_code == 201:
+            saved_consumption_metadata_id = response.json()["id"]
+            print("  Saved consumption_metadata with id: {}".format(saved_consumption_metadata_id))
+        else:
+            print("  UNSUCCESSFUL save of consumption data.")
+            print(response.json())
+
+
 
 def find_best_annualized_usage_params(target_annualized_usage, model,
         start_params, params_to_change, weather_normal_source, n_guesses=100):
@@ -180,6 +202,25 @@ def generate_consumption_records(model, params_pre, params_post, datetimes_pre, 
 
     return cd
 
+def get_or_create_project_attribute_key(name, data_type, url, token):
+
+    auth_headers = {"Authorization":"Bearer {}".format(token)}
+
+    response = requests.get(url + PROJECT_ATTRIBUTE_KEY_URL + "?name={}".format(name), headers=auth_headers, verify=False)
+
+    existing = response.json()
+    if existing == []:
+        # create
+        response = requests.post(url + PROJECT_ATTRIBUTE_KEY_URL, data={"name":name, "data_type": data_type}, headers=auth_headers, verify=False)
+        key_id = response.json()["id"]
+        print("Created key id: {} ({})".format(key_id, name))
+    else:
+        key_id = existing[0]["id"]
+        print("Existing key id: {} ({})".format(key_id, name))
+
+    return key_id
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -234,6 +275,12 @@ if __name__ == '__main__':
 
     model_e = AverageDailyTemperatureSensitivityModel(heating=True, cooling=True)
     model_g = AverageDailyTemperatureSensitivityModel(heating=True, cooling=False)
+
+    # create or find project attribute keys
+    electricity_savings_key_id = get_or_create_project_attribute_key("electricity_savings", "FLOAT", args.server_url, args.oauth_token)
+    natural_gas_savings_key_id = get_or_create_project_attribute_key("natural_gas_savings", "FLOAT", args.server_url, args.oauth_token)
+    project_cost_key_id = get_or_create_project_attribute_key("project_cost", "FLOAT", args.server_url, args.oauth_token)
+
 
     for U_tot_pre, p_U_tot_pre_gas, S_tot, p_S_tot_gas in zip(total_usage_pre_retrofit,
             proportion_total_usage_pre_retrofit_gas, total_proportion_savings,
@@ -292,5 +339,20 @@ if __name__ == '__main__':
         project = create_project(params_e_pre, params_e_post, params_g_pre, params_g_post, model_e, model_g,
             earliest_start_date, latest_start_date, earliest_retrofit_date, latest_retrofit_date, weather_source, args.zipcode)
 
-        upload_to_server(project, args.server_url, args.oauth_token, args.project_owner_id)
+        project_attributes = [
+            {
+                'key': electricity_savings_key_id,
+                'float_value': (ann_usage_e_pre - ann_usage_e_post) * norm.rvs(1.5, 0.3),
+            },
+            {
+                'key': natural_gas_savings_key_id,
+                'float_value': (ann_usage_g_pre - ann_usage_g_post) * norm.rvs(1.5, 0.3),
+            },
+            {
+                'key': project_cost_key_id,
+                'float_value': randint.rvs(1000,50000),
+            },
+        ]
+
+        upload_to_server(project, args.server_url, args.oauth_token, args.project_owner_id, project_attributes)
 
