@@ -59,7 +59,8 @@ def upload_to_server(project, url, token, project_owner_id, project_attributes=[
         "reporting_period_end": project.reporting_period.end,
         "latitude": project.location.lat + norm.rvs(),
         "longitude": project.location.lng + norm.rvs(),
-        "zipcode": project.location.zipcode
+        "zipcode": project.location.zipcode,
+        "weather_station": project.location.station,
     }
 
     # see if project exists:
