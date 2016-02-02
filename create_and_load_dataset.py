@@ -244,25 +244,25 @@ if __name__ == '__main__':
 
     total_usage_pre_retrofit = norm.rvs(loc=args.total_usage_pre_retrofit_mean,
             scale=args.total_usage_pre_retrofit_variation, size=args.n_projects)
-    while total_usage_pre_retrofit <= 0:
+    while any(total_usage_pre_retrofit <= 0):
         total_usage_pre_retrofit = norm.rvs(loc=args.total_usage_pre_retrofit_mean,
                 scale=args.total_usage_pre_retrofit_variation, size=args.n_projects)
 
     proportion_total_usage_pre_retrofit_gas = norm.rvs(loc=args.proportion_total_usage_pre_retrofit_gas_mean,
             scale=args.proportion_total_usage_pre_retrofit_gas_variation, size=args.n_projects)
-    while not (0 <= proportion_total_usage_pre_retrofit_gas <= 1):
+    while any(0 > proportion_total_usage_pre_retrofit_gas) or any(proportion_total_usage_pre_retrofit_gas > 1):
         proportion_total_usage_pre_retrofit_gas = norm.rvs(loc=args.proportion_total_usage_pre_retrofit_gas_mean,
                 scale=args.proportion_total_usage_pre_retrofit_gas_variation, size=args.n_projects)
 
     total_proportion_savings = norm.rvs(loc=args.total_proportion_savings_mean,
             scale=args.total_proportion_savings_variation, size=args.n_projects)
-    while not (0 <= total_proportion_savings <= 1):
+    while any(0 > total_proportion_savings) or any(total_proportion_savings > 1):
         total_proportion_savings = norm.rvs(loc=args.total_proportion_savings_mean,
                 scale=args.total_proportion_savings_variation, size=args.n_projects)
 
     proportion_total_savings_gas = norm.rvs(loc=args.proportion_total_savings_gas_mean,
             scale=args.proportion_total_savings_gas_variation, size=args.n_projects)
-    while not (0 <= proportion_total_savings_gas <= 1):
+    while any(0 > proportion_total_savings_gas) or any(proportion_total_savings_gas > 1):
         proportion_total_savings_gas = norm.rvs(loc=args.proportion_total_savings_gas_mean,
                 scale=args.proportion_total_savings_gas_variation, size=args.n_projects)
 
