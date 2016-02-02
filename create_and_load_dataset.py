@@ -57,6 +57,8 @@ def upload_to_server(project, url, token, project_owner_id, project_attributes=[
         "baseline_period_end": project.baseline_period.end,
         "reporting_period_start": project.reporting_period.start,
         "reporting_period_end": project.reporting_period.end,
+        "latitude": project.location.lat + norm.rvs(),
+        "longitude": project.location.lng + norm.rvs(),
         "zipcode": project.location.zipcode
     }
 
@@ -202,7 +204,7 @@ def generate_consumption_records(model, params_pre, params_post, datetimes_pre, 
 
     return cd
 
-def get_or_create_project_attribute_key(name, data_type, url, token):
+def get_or_create_project_attribute_key(name, data_type, display_name, url, token):
 
     auth_headers = {"Authorization":"Bearer {}".format(token)}
 
@@ -211,7 +213,8 @@ def get_or_create_project_attribute_key(name, data_type, url, token):
     existing = response.json()
     if existing == []:
         # create
-        response = requests.post(url + PROJECT_ATTRIBUTE_KEY_URL, data={"name":name, "data_type": data_type}, headers=auth_headers, verify=False)
+        response = requests.post(url + PROJECT_ATTRIBUTE_KEY_URL, data={"name":name, "data_type": data_type, "display_name": display_name}, headers=auth_headers, verify=False)
+        print response.json()
         key_id = response.json()["id"]
         print("Created key id: {} ({})".format(key_id, name))
     else:
@@ -241,12 +244,27 @@ if __name__ == '__main__':
 
     total_usage_pre_retrofit = norm.rvs(loc=args.total_usage_pre_retrofit_mean,
             scale=args.total_usage_pre_retrofit_variation, size=args.n_projects)
+    while total_usage_pre_retrofit <= 0:
+        total_usage_pre_retrofit = norm.rvs(loc=args.total_usage_pre_retrofit_mean,
+                scale=args.total_usage_pre_retrofit_variation, size=args.n_projects)
+
     proportion_total_usage_pre_retrofit_gas = norm.rvs(loc=args.proportion_total_usage_pre_retrofit_gas_mean,
             scale=args.proportion_total_usage_pre_retrofit_gas_variation, size=args.n_projects)
+    while not (0 <= proportion_total_usage_pre_retrofit_gas <= 1):
+        proportion_total_usage_pre_retrofit_gas = norm.rvs(loc=args.proportion_total_usage_pre_retrofit_gas_mean,
+                scale=args.proportion_total_usage_pre_retrofit_gas_variation, size=args.n_projects)
+
     total_proportion_savings = norm.rvs(loc=args.total_proportion_savings_mean,
             scale=args.total_proportion_savings_variation, size=args.n_projects)
+    while not (0 <= total_proportion_savings <= 1):
+        total_proportion_savings = norm.rvs(loc=args.total_proportion_savings_mean,
+                scale=args.total_proportion_savings_variation, size=args.n_projects)
+
     proportion_total_savings_gas = norm.rvs(loc=args.proportion_total_savings_gas_mean,
             scale=args.proportion_total_savings_gas_variation, size=args.n_projects)
+    while not (0 <= proportion_total_savings_gas <= 1):
+        proportion_total_savings_gas = norm.rvs(loc=args.proportion_total_savings_gas_mean,
+                scale=args.proportion_total_savings_gas_variation, size=args.n_projects)
 
     station = zipcode_to_station(args.zipcode)
 
@@ -277,9 +295,21 @@ if __name__ == '__main__':
     model_g = AverageDailyTemperatureSensitivityModel(heating=True, cooling=False)
 
     # create or find project attribute keys
-    electricity_savings_key_id = get_or_create_project_attribute_key("electricity_savings", "FLOAT", args.server_url, args.oauth_token)
-    natural_gas_savings_key_id = get_or_create_project_attribute_key("natural_gas_savings", "FLOAT", args.server_url, args.oauth_token)
-    project_cost_key_id = get_or_create_project_attribute_key("project_cost", "FLOAT", args.server_url, args.oauth_token)
+    electricity_savings_key_id = get_or_create_project_attribute_key(
+            "predicted_electricity_savings",
+            "FLOAT",
+            "Predicted Electricity Savings",
+            args.server_url, args.oauth_token)
+    natural_gas_savings_key_id = get_or_create_project_attribute_key(
+            "predicted_natural_gas_savings",
+            "FLOAT",
+            "Predicted Natural Gas Savings",
+            args.server_url, args.oauth_token)
+    project_cost_key_id = get_or_create_project_attribute_key(
+            "project_cost",
+            "FLOAT",
+            "Project Cost",
+            args.server_url, args.oauth_token)
 
 
     for U_tot_pre, p_U_tot_pre_gas, S_tot, p_S_tot_gas in zip(total_usage_pre_retrofit,
@@ -350,7 +380,7 @@ if __name__ == '__main__':
             },
             {
                 'key': project_cost_key_id,
-                'float_value': randint.rvs(1000,50000),
+                'float_value': randint.rvs(1000, 50000),
             },
         ]
 
