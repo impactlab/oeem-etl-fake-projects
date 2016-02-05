@@ -215,7 +215,7 @@ def get_or_create_project_attribute_key(name, data_type, display_name, url, toke
     if existing == []:
         # create
         response = requests.post(url + PROJECT_ATTRIBUTE_KEY_URL, data={"name":name, "data_type": data_type, "display_name": display_name}, headers=auth_headers, verify=False)
-        print response.json()
+        print(response.json())
         key_id = response.json()["id"]
         print("Created key id: {} ({})".format(key_id, name))
     else:
@@ -332,7 +332,7 @@ if __name__ == '__main__':
         U_g_pre = 0.034129 * U_g_pre
         U_g_post = 0.034129 * U_g_post
 
-        print "Annualized Usage G:(pre={}, post={}), E:(pre={}, post={})".format(U_g_pre, U_g_post, U_e_pre, U_e_post)
+        print("Annualized Usage G:(pre={}, post={}), E:(pre={}, post={})".format(U_g_pre, U_g_post, U_e_pre, U_e_post))
 
         # find target model params
         start_params_e = model_e.param_type({
@@ -361,7 +361,7 @@ if __name__ == '__main__':
 
         params_e_post, ann_usage_e_post = find_best_annualized_usage_params(U_e_post, model_e, params_e_pre, params_to_change_e, weather_normal_source)
 
-        print ann_usage_g_pre, ann_usage_g_post, ann_usage_e_pre, ann_usage_e_post
+        print(ann_usage_g_pre, ann_usage_g_post, ann_usage_e_pre, ann_usage_e_post)
 
         earliest_start_date = datetime(2007,1,1)
         latest_start_date = datetime(2008,1,1)
