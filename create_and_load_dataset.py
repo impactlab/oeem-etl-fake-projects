@@ -79,7 +79,7 @@ def upload_to_server(project, url, token, project_owner_id, project_attributes=[
         print("  Saved project with id: {}".format(saved_project_id))
 
     else:
-        saved_project_id = test_project_existence_json[0].project_id
+        saved_project_id = test_project_existence_json[0]["project_id"]
 
     # save project attributes
     for project_attribute in project_attributes:
