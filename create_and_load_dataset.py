@@ -235,12 +235,18 @@ if __name__ == '__main__':
     parser.add_argument("n_projects", type=int, help="Number of projects")
     parser.add_argument("total_usage_pre_retrofit_mean", type=float, help="kWh/year")
     parser.add_argument("total_usage_pre_retrofit_variation", type=float, help="kWh/year")
-    parser.add_argument("proportion_total_usage_pre_retrofit_gas_mean", type=float, help="Percent")
-    parser.add_argument("proportion_total_usage_pre_retrofit_gas_variation", type=float, help="Percent")
-    parser.add_argument("total_proportion_savings_mean", type=float, help="Percent")
-    parser.add_argument("total_proportion_savings_variation", type=float, help="Percent")
-    parser.add_argument("proportion_total_savings_gas_mean", type=float, help="Percent")
-    parser.add_argument("proportion_total_savings_gas_variation", type=float, help="Percent")
+    parser.add_argument("proportion_total_usage_pre_retrofit_gas_mean", type=float, help="Between 0 and 1")
+    parser.add_argument("proportion_total_usage_pre_retrofit_gas_variation", type=float, help="Between 0 and 1")
+    parser.add_argument("total_proportion_savings_mean", type=float, help="Between 0 and 1")
+    parser.add_argument("total_proportion_savings_variation", type=float, help="Between 0 and 1")
+    parser.add_argument("proportion_total_savings_gas_mean", type=float, help="Between 0 and 1")
+    parser.add_argument("proportion_total_savings_gas_variation", type=float, help="Between 0 and 1")
+    parser.add_argument("realization_rate_gas_mean", type=float, help="Float close to 1")
+    parser.add_argument("realization_rate_gas_variation", type=float, help="Variation")
+    parser.add_argument("realization_rate_electricity_mean", type=float, help="Float close to 1")
+    parser.add_argument("realization_rate_electricity_variation", type=float, help="Variation")
+    parser.add_argument("project_cost_mean", type=float, help="Dollars")
+    parser.add_argument("project_cost_variation", type=float, help="Dollars")
     args = parser.parse_args()
 
     total_usage_pre_retrofit = norm.rvs(loc=args.total_usage_pre_retrofit_mean,
@@ -284,6 +290,12 @@ if __name__ == '__main__':
     print("  total_proportion_savings_variation                     {}".format(args.total_proportion_savings_variation))
     print("  proportion_total_savings_gas_mean                      {}".format(args.proportion_total_savings_gas_mean))
     print("  proportion_total_savings_gas_variation                 {}".format(args.proportion_total_savings_gas_variation))
+    print("  realization_rate_gas_mean                              {}".format(args.realization_rate_gas_mean))
+    print("  realization_rate_gas_variation                         {}".format(args.realization_rate_gas_variation))
+    print("  realization_rate_electricity_mean                      {}".format(args.realization_rate_electricity_mean))
+    print("  realization_rate_electricity_variation                 {}".format(args.realization_rate_electricity_variation))
+    print("  project_cost_mean                                      {}".format(args.project_cost_mean))
+    print("  project_cost_variation                                 {}".format(args.project_cost_variation))
 
     weather_source = GSODWeatherSource(station, 2007, 2015)
     weather_normal_source = TMY3WeatherSource(station)
@@ -373,15 +385,17 @@ if __name__ == '__main__':
         project_attributes = [
             {
                 'key': electricity_savings_key_id,
-                'float_value': (ann_usage_e_pre - ann_usage_e_post) * norm.rvs(1.5, 0.3),
+                'float_value': (ann_usage_e_pre - ann_usage_e_post) / \
+                        norm.rvs(args.realization_rate_electricity_mean, args.realization_rate_electricity_variation),
             },
             {
                 'key': natural_gas_savings_key_id,
-                'float_value': (ann_usage_g_pre - ann_usage_g_post) * norm.rvs(1.5, 0.3),
+                'float_value': (ann_usage_g_pre - ann_usage_g_post) / \
+                        norm.rvs(args.realization_rate_gas_mean, args.realization_rate_gas_variation),
             },
             {
                 'key': project_cost_key_id,
-                'float_value': randint.rvs(1000, 50000),
+                'float_value': norm.rvs(args.project_cost_mean, args.project_cost_variation),
             },
         ]
 
