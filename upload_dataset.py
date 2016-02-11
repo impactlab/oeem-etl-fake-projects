@@ -146,7 +146,7 @@ def get_or_create_consumption_metadata(project, records, fuel_type, energy_unit,
 
     if existing == []:
 
-        data = {
+        json_data = {
             "project": project,
             "records": records,
             "fuel_type": fuel_type,
@@ -154,7 +154,7 @@ def get_or_create_consumption_metadata(project, records, fuel_type, energy_unit,
         }
 
         response = requests.post(url + CONSUMPTION_METADATA_URL,
-                data=data, headers=auth_headers, verify=verify)
+                json=json_data, headers=auth_headers, verify=verify)
 
         consumption_metadata_id = response.json()["id"]
         print("Created consumption_metadata id: {} ({})".format(consumption_metadata_id, fuel_type))
