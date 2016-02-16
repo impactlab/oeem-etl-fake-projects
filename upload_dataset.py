@@ -125,8 +125,13 @@ def get_or_create_project_attribute(project, key, float_value, url, token, verif
         response = requests.post(url + PROJECT_ATTRIBUTE_URL,
                 data=data, headers=auth_headers, verify=verify)
 
-        attribute_id = response.json()["id"]
-        print("Created attribute id: {} ({})".format(attribute_id, key))
+        if response.status_code == "201":
+            attribute_id = response.json()["id"]
+            print("Created attribute id: {} ({})".format(attribute_id, key))
+        else:
+            print("Did not successfully create project attribute")
+            print(response.status_code)
+            print(response.text)
         return attribute_id, True
     else:
         attribute_id = existing[0]["id"]
