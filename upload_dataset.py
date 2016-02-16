@@ -183,9 +183,14 @@ def create_eemeter_consumptions(consumption_data_rows):
             for _, row in consumption_data_rows[consumption_data_rows.fuel_type == "natural_gas"].iterrows()]
     electricity_records = [{"start": row.start, "end": row.end, "value": row.value}
             for _, row in consumption_data_rows[consumption_data_rows.fuel_type == "electricity"].iterrows()]
-    cd_g = ConsumptionData(natural_gas_records, "natural_gas", "therm", record_type="arbitrary")
-    cd_e = ConsumptionData(electricity_records, "electricity", "kWh", record_type="arbitrary")
-    return [cd_g, cd_e]
+    consumption = []
+    if len(natural_gas_records) > 0:
+        cd_g = ConsumptionData(natural_gas_records, "natural_gas", "therm", record_type="arbitrary")
+        consumption.append(cd_g)
+    if len(electricity_records) > 0:
+        cd_e = ConsumptionData(electricity_records, "electricity", "kWh", record_type="arbitrary")
+        consumption.append(cd_e)
+    return consumption
 
 def upload_to_server(project, project_id, url, token, project_owner_id, project_attributes=[], verify=True):
     """Uploads the data to the server.

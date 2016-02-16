@@ -2,7 +2,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from bashplotlib.histogram import plot_hist
-from scipy.stats import gamma, beta, norm, randint
+from scipy.stats import gamma, beta, norm, randint, bernoulli
 
 
 from eemeter.location import zipcode_to_station
@@ -132,7 +132,8 @@ def find_best_annualized_usage_params(target_annualized_usage, model,
 
 def create_project(params_e_pre, params_e_post, params_g_pre, params_g_post,
         baseline_period_start_date, baseline_period_end_date,
-        reporting_period_start_date, reporting_period_end_date, weather_source, zipcode):
+        reporting_period_start_date, reporting_period_end_date,
+        has_electricity, has_gas, weather_source, zipcode):
 
     model_e = AverageDailyTemperatureSensitivityModel(heating=True, cooling=True)
     model_g = AverageDailyTemperatureSensitivityModel(heating=True, cooling=False)
@@ -143,16 +144,22 @@ def create_project(params_e_pre, params_e_post, params_g_pre, params_g_post,
 
     reporting_period = Period(datetimes_pre[-1], reporting_period_end_date)
     datetimes_post = generate_monthly_billing_datetimes(reporting_period, dist=randint(29,31))
-
-    cd_e = generate_consumption_records(model_e, params_e_pre, params_e_post, datetimes_pre, datetimes_post, "electricity", "kWh", weather_source)
-    cd_g = generate_consumption_records(model_g, params_g_pre, params_g_post, datetimes_pre, datetimes_post, "natural_gas", "therm", weather_source)
-
     location = Location(zipcode=zipcode)
     baseline_period = Period(baseline_period_start_date, baseline_period_end_date)
     reporting_period = Period(reporting_period_start_date, reporting_period_end_date)
-    cds = [cd_e, cd_g]
-    project = Project(location, cds, baseline_period, reporting_period)
-    return project
+
+
+    cds = []
+
+    if has_electricity:
+        cd_e = generate_consumption_records(model_e, params_e_pre, params_e_post, datetimes_pre, datetimes_post, "electricity", "kWh", weather_source)
+        cds.append(cd_e)
+
+    if has_gas:
+        cd_g = generate_consumption_records(model_g, params_g_pre, params_g_post, datetimes_pre, datetimes_post, "natural_gas", "therm", weather_source)
+        cds.append(cd_g)
+
+    return Project(location, cds, baseline_period, reporting_period)
 
 def generate_consumption_records(model, params_pre, params_post, datetimes_pre, datetimes_post, fuel_type, energy_unit, weather_source):
 
@@ -283,6 +290,9 @@ if __name__ == "__main__":
         reporting_period_days_alpha = float(section["reporting_period_days_alpha"])
         reporting_period_days_beta = float(section["reporting_period_days_beta"])
 
+        has_electricity_p = float(section["has_electricity_p"])
+        has_gas_p = float(section["has_gas_p"])
+
         if args.show_plots:
             print("\nProject cost")
             plot_gamma(project_cost_k, project_cost_theta)
@@ -347,6 +357,12 @@ if __name__ == "__main__":
                 project_length_days_alpha,
                 project_length_days_beta, size=n_projects) * project_length_days_max
 
+        has_electricity = bernoulli.rvs(
+                has_electricity_p, size=n_projects)
+
+        has_gas = bernoulli.rvs(
+                has_gas_p, size=n_projects)
+
         proportion_total_usage_pre_retrofit_electricity = 1 - proportion_total_usage_pre_retrofit_gas
         proportion_total_savings_electricity = 1 - proportion_total_savings_gas
 
@@ -381,16 +397,33 @@ if __name__ == "__main__":
             baseline_period_end_date = reporting_period_start_date - timedelta(days=round(project_length_days[i]))
             baseline_period_start_date = baseline_period_end_date - timedelta(days=round(baseline_period_days[i]))
 
-            project = create_project(params_e_pre, params_e_post, params_g_pre, params_g_post,
-                baseline_period_start_date, baseline_period_end_date,
-                reporting_period_start_date, reporting_period_end_date,
-                weather_source, zipcode)
+            project = create_project(
+                    params_e_pre,
+                    params_e_post,
+                    params_g_pre,
+                    params_g_post,
+                    baseline_period_start_date,
+                    baseline_period_end_date,
+                    reporting_period_start_date,
+                    reporting_period_end_date,
+                    has_electricity[i],
+                    has_gas[i],
+                    weather_source,
+                    zipcode)
 
-            projects.append({
+            project_data = {
                 "project": project,
-                "predicted_electricity_savings": (ann_usage_e_pre - ann_usage_e_post) / realization_rate_electricity[i],
-                "predicted_natural_gas_savings": (ann_usage_g_pre - ann_usage_g_post) / realization_rate_gas[i],
                 "project_cost": project_cost[i],
-            })
+                "predicted_electricity_savings": "",
+                "predicted_natural_gas_savings": "",
+            }
+
+            if has_electricity[i]:
+                project_data["predicted_electricity_savings"] = (ann_usage_e_pre - ann_usage_e_post) / realization_rate_electricity[i]
+
+            if has_gas[i]:
+                project_data["predicted_natural_gas_savings"] = (ann_usage_g_pre - ann_usage_g_post) / realization_rate_gas[i],
+
+            projects.append(project_data)
 
         write_projects_to_csv(projects, args.project_csv, args.consumption_csv)
