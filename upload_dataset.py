@@ -19,155 +19,129 @@ CONSUMPTION_METADATA_URL = '/api/v1/consumption_metadatas/'
 PROJECT_ATTRIBUTE_KEY_URL = '/api/v1/project_attribute_keys/'
 PROJECT_ATTRIBUTE_URL = '/api/v1/project_attributes/'
 
-def read_server_config(server_config):
-    server_config = configparser.ConfigParser()
-    server_config.read(args.server_config)
-    if "server" in server_config:
-        server = server_config["server"]
+def get_or_create(item_name, extra_info, get_url, create_url, data, token, verify=True, verbose=True):
+
+    headers = { "Authorization": "Bearer {}".format(token) }
+
+    response = requests.get(get_url, headers=headers, verify=verify)
+
+    if response.status_code != 200:
+        message = "GET error ({}): {}\n{}".format(
+                response.status_code, get_url, response.text)
+        raise ValueError(message)
+
+    pks = [item["id"] for item in response.json()]
+
+    if pks == []:
+        response = requests.post(create_url,
+                json=data, headers=headers, verify=verify)
+
+        if response.status_code != 201:
+            message = "Create POST error ({}): {}\n{}\n{}".format(
+                    response.status_code, create_url, data, response.text)
+            raise ValueError(message)
+
+        pk = response.json()["id"]
+
+        if verbose:
+            print("Created {} ({}, pk={})".format(item_name, extra_info, pk))
+
+        return pk, True
     else:
-        message = "Please set up a server_config file with section 'server'"
-        raise KeyError(message)
+        pk = pks[0]
 
-    server_url = server["url"]
-    oauth_token = server["oauth_token"]
-    project_owner_id = server["project_owner_id"]
+        if len(pks) > 1:
+            message = (
+                "Found multiple {} instances ({}) for {}; using pk={}"
+                .format(item_name, pks, extra_info, pk)
+            )
+            warnings.warn(message)
 
-    return server_url, oauth_token, project_owner_id
+        if verbose:
+            print("Existing {} ({}, pk={})".format(item_name, extra_info, pk))
+
+        return pk, False
+
 
 def get_or_create_project(project_id, project_owner_id,
         baseline_period_start, baseline_period_end,
         reporting_period_start, reporting_period_end,
         latitude, longitude, zipcode, weather_station, url, token, verify=True):
 
-    auth_headers = {"Authorization":"Bearer {}".format(token)}
+    get_url = url + PROJECT_URL + "?project_id={}".format(project_id)
+    create_url = url + PROJECT_URL
 
-    response = requests.get(url + PROJECT_URL + "?project_id={}".format(project_id),
-            headers=auth_headers, verify=verify)
+    data = {
+        "project_id": project_id,
+        "project_owner": project_owner_id,
+        "baseline_period_start": baseline_period_start,
+        "baseline_period_end": baseline_period_end,
+        "reporting_period_start": reporting_period_start,
+        "reporting_period_end": reporting_period_end,
+        "latitude": latitude,
+        "longitude": longitude,
+        "zipcode": zipcode,
+        "weather_station": weather_station,
+    }
 
-    # see if project exists:
-    response = requests.get(url + PROJECT_URL + "?project_id={}".format(project_id), headers=auth_headers, verify=verify)
+    import pdb;pdb.set_trace()
 
-    existing = response.json()
+    return get_or_create("Project", project_id, get_url, create_url, data,
+            token, verify=True, verbose=True)
 
-    if existing == []:
-
-        data = {
-            "project_id": project_id,
-            "project_owner": project_owner_id,
-            "baseline_period_start": baseline_period_start,
-            "baseline_period_end": baseline_period_end,
-            "reporting_period_start": reporting_period_start,
-            "reporting_period_end": reporting_period_end,
-            "latitude": latitude,
-            "longitude": longitude,
-            "zipcode": zipcode,
-            "weather_station": weather_station,
-        }
-
-        response = requests.post(url + PROJECT_URL,
-                data=data, headers=auth_headers, verify=verify)
-
-        project_pk = response.json()["id"]
-        print("Created project pk: {} ({})".format(project_pk, project_id))
-        return project_pk, True
-    else:
-        project_pk = existing[0]["id"]
-        print("Existing project pk: {} ({})".format(project_pk, project_id))
-        return project_pk, False
 
 def get_or_create_project_attribute_key(name, data_type, display_name, url, token, verify=True):
 
-    auth_headers = {"Authorization":"Bearer {}".format(token)}
+    get_url = url + PROJECT_ATTRIBUTE_KEY_URL + "?name={}".format(name)
+    create_url = url + PROJECT_ATTRIBUTE_KEY_URL
 
-    response = requests.get(url + PROJECT_ATTRIBUTE_KEY_URL + "?name={}".format(name),
-            headers=auth_headers, verify=verify)
+    data = {
+        "name": name,
+        "data_type": data_type,
+        "display_name": display_name
+    }
 
-    existing = response.json()
+    return get_or_create("ProjectAttributeKey", display_name, get_url, create_url, data,
+            token, verify=True, verbose=True)
 
-    if existing == []:
-        # create
-        data = {
-            "name": name,
-            "data_type": data_type,
-            "display_name": display_name
-        }
-
-        response = requests.post(url + PROJECT_ATTRIBUTE_KEY_URL,
-                data=data, headers=auth_headers, verify=verify)
-
-        print(response.json())
-
-        key_id = response.json()["id"]
-        print("Created key id: {} ({})".format(key_id, name))
-        return key_id, True
-    else:
-        key_id = existing[0]["id"]
-        print("Existing key id: {} ({})".format(key_id, name))
-        return key_id, False
 
 def get_or_create_project_attribute(project, key, float_value, url, token, verify=True):
 
-    auth_headers = {"Authorization":"Bearer {}".format(token)}
+    get_url = (
+        url + PROJECT_ATTRIBUTE_URL +
+        "?project={}&key={}"
+        .format(project, key)
+    )
+    create_url = url + PROJECT_ATTRIBUTE_URL
 
-    response = requests.get(url + PROJECT_ATTRIBUTE_URL + "?project={}&key={}".format(project, key),
-            headers=auth_headers, verify=verify)
+    data = {
+        "key": key,
+        "project": project,
+        "float_value": float_value,
+    }
 
-    existing = response.json()
-
-    if existing == []:
-        # create
-        data = {
-            "key": key,
-            "project": project,
-            "float_value": float_value,
-        }
-
-        response = requests.post(url + PROJECT_ATTRIBUTE_URL,
-                data=data, headers=auth_headers, verify=verify)
-
-        if response.status_code == "201":
-            attribute_id = response.json()["id"]
-            print("Created attribute id: {} ({})".format(attribute_id, key))
-        else:
-            print("Did not successfully create project attribute")
-            print(response.status_code)
-            print(response.text)
-        return attribute_id, True
-    else:
-        attribute_id = existing[0]["id"]
-        print("Existing attribute id: {} ({})".format(attribute_id, key))
-        return attribute_id, False
+    return get_or_create("ProjectAttribute", key, get_url, create_url, data,
+            token, verify=True, verbose=True)
 
 
 def get_or_create_consumption_metadata(project, records, fuel_type, energy_unit, url, token, verify=True):
 
-    auth_headers = {"Authorization":"Bearer {}".format(token)}
+    get_url = (
+        url + CONSUMPTION_METADATA_URL +
+        "?projects={}&fuel_type={}&energy_unit={}"
+        .format(project, fuel_type, energy_unit)
+    )
+    create_url = url + CONSUMPTION_METADATA_URL
 
-    response = requests.get(url + CONSUMPTION_METADATA_URL +
-            "?projects={}&fuel_type={}&energy_unit={}".format(project, fuel_type, energy_unit),
-            headers=auth_headers, verify=verify)
+    data = {
+        "project": project,
+        "records": records,
+        "fuel_type": fuel_type,
+        "energy_unit": energy_unit,
+    }
 
-    existing = response.json()
-
-    if existing == []:
-
-        json_data = {
-            "project": project,
-            "records": records,
-            "fuel_type": fuel_type,
-            "energy_unit": energy_unit,
-        }
-
-        response = requests.post(url + CONSUMPTION_METADATA_URL,
-                json=json_data, headers=auth_headers, verify=verify)
-
-        consumption_metadata_id = response.json()["id"]
-        print("Created consumption_metadata id: {} ({})".format(consumption_metadata_id, fuel_type))
-        return consumption_metadata_id, True
-    else:
-        consumption_metadata_id = existing[0]["id"]
-        print("Existing consumption_metadata id: {} ({})".format(consumption_metadata_id, fuel_type))
-        return consumption_metadata_id, False
+    return get_or_create("ConsumptionMetadata", fuel_type, get_url, create_url, data,
+            token, verify=True, verbose=True)
 
 
 def create_eemeter_project(project_row, consumption_data_rows):
@@ -219,8 +193,8 @@ def upload_to_server(project, project_id, url, token, project_owner_id, project_
     print("ProjectID: {}".format(project_id))
 
     project_pk, created = get_or_create_project(project_id, project_owner_id,
-        project.baseline_period.start, project.baseline_period.end,
-        project.reporting_period.start, project.reporting_period.end,
+        project.baseline_period.start.isoformat(), project.baseline_period.end.isoformat(),
+        project.reporting_period.start.isoformat(), project.reporting_period.end.isoformat(),
         project.location.lat, project.location.lng,
         project.location.zipcode, project.location.station, url, token, verify=verify)
 
@@ -243,6 +217,22 @@ def upload_to_server(project, project_id, url, token, project_owner_id, project_
 
         consumption_metadata_id, created = get_or_create_consumption_metadata(
                 project_pk, records, fuel_type, energy_unit, url, token, verify=verify)
+
+
+def read_server_config(server_config):
+    server_config = configparser.ConfigParser()
+    server_config.read(args.server_config)
+    if "server" in server_config:
+        server = server_config["server"]
+    else:
+        message = "Please set up a server_config file with section 'server'"
+        raise KeyError(message)
+
+    server_url = server["url"]
+    oauth_token = server["oauth_token"]
+    project_owner_id = server["project_owner_id"]
+
+    return server_url, oauth_token, project_owner_id
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

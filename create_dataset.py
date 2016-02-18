@@ -422,7 +422,7 @@ if __name__ == "__main__":
                 project_data["predicted_electricity_savings"] = (ann_usage_e_pre - ann_usage_e_post) / realization_rate_electricity[i]
 
             if has_gas[i]:
-                project_data["predicted_natural_gas_savings"] = (ann_usage_g_pre - ann_usage_g_post) / realization_rate_gas[i],
+                project_data["predicted_natural_gas_savings"] = (ann_usage_g_pre - ann_usage_g_post) / realization_rate_gas[i]
 
             projects.append(project_data)
 
